@@ -29,6 +29,9 @@ def speak(text):
 #     while pygame.mixer.music.get_busy():
 #         pygame.time.Clock().tick(10)
 
+#     pygame.mixer.music.stop()
+#     pygame.mixer.music.unload()
+
 #     os.remove('temp.mp3')
 
 def aiProcess(command):
@@ -41,6 +44,13 @@ def aiProcess(command):
 
     completion = model.generate_content(command)
     return completion.text
+
+def list_microphones():
+    """List available microphones for debugging"""
+    print("Available microphones:")
+    for i, microphone_name in enumerate(sr.Microphone.list_microphone_names()):
+        print(f"Microphone {i}: {microphone_name}")
+    return sr.Microphone.list_microphone_names()
 
 def processCommand(c):
     if 'open google' in c.lower():
@@ -88,28 +98,54 @@ def processCommand(c):
 
 if __name__ == "__main__":
     speak("Initializing Jarvis...")
+    
+    # List available microphones for debugging
+    list_microphones()
+    
+    # Test microphone availability
+    print("Testing microphone...")
+    try:
+        with sr.Microphone() as source:
+            print("Microphone found and working")
+    except Exception as e:
+        print(f"Microphone error: {e}")
+        exit(1)
+    
     # Listen for the wake word "Jarvis"
-
+    print("Say 'Jarvis' to activate...")
+    
     while True:
         # obtain audio from the microphone
         r = sr.Recognizer()
+        r.energy_threshold = 4000  # Adjust based on your environment
+        r.dynamic_energy_threshold = True
 
         # recognize speech using google
         print("Recognizing...")
         try:
             with sr.Microphone() as source:
-                print("Listening...")
-                audio = r.listen(source, timeout=2, phrase_time_limit=1)
+                print("Adjusting for ambient noise...")
+                r.adjust_for_ambient_noise(source, duration=1.0)
+                print("Listening for wake word 'Jarvis'...")
+                audio = r.listen(source, timeout=10, phrase_time_limit=3)
             word = r.recognize_google(audio)
-            if word.lower() == 'Jarvis':
-                speak('Ya')
+            print(f"You said: {word}")
+            if word.lower() == 'jarvis':  # Fixed: comparing lowercase to lowercase
+                speak('Yes, I am listening')
                 # Listen for the next command
                 with sr.Microphone() as source:
                     print("Jarvis Active...")
-                    audio = r.listen(source)
+                    r.adjust_for_ambient_noise(source, duration=0.5)
+                    audio = r.listen(source, timeout=10, phrase_time_limit=5)
                     command = r.recognize_google(audio)
-
+                    print(f"Command received: {command}")
                     processCommand(command)
 
+        except sr.WaitTimeoutError:
+            print("No speech detected, continuing to listen...")
+        except sr.UnknownValueError:
+            print("Could not understand audio, continuing to listen...")
+        except sr.RequestError as e:
+            print(f"Google Speech Recognition service error: {e}")
         except Exception as e:
-            print("Error; {0}".format(e))
+            print(f"Unexpected error: {e}")
